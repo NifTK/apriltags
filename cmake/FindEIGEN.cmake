@@ -1,0 +1,6 @@
+set(EIGEN_FOUND 0)
+set(EIGEN_DIR @EIGEN_DIR@)
+if(EIGEN_DIR)
+  set(EIGEN_INCLUDE_DIR ${EIGEN_DIR})
+  set(EIGEN_FOUND 1)
+endif()
