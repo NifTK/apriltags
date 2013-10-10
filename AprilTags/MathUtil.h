@@ -69,6 +69,15 @@ public:
 	
 };
 
+// std::isnan() exists only from C++11 onwards
+template <typename T>
+bool isnan(T x)
+{
+  // a nan is not equal to anything, not even itself.
+  // lets hope the compiler doesnt optimise this away...
+  return x != x;
+}
+
 } // namespace
 
 #endif
