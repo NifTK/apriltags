@@ -9,6 +9,11 @@
 #include <ostream>
 #include <utility>
 
+// from math.h (via cmath, usually)
+#ifndef M_PI
+#define M_PI       3.14159265358979323846
+#endif
+
 namespace AprilTags {
 
 std::ostream& operator<<(std::ostream &os, const std::pair<float,float> &pt);
