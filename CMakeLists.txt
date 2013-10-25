@@ -21,3 +21,13 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 target_link_libraries(apriltags ${OpenCV_LIBS}) #-pg) #-fopenmp)
 
 #add_subdirectory(example)
+
+# Add stuff for an install target.
+file(GLOB HEADER_FILES ${CMAKE_SOURCE_DIR}/AprilTags/*)
+install(PROGRAMS ${HEADER_FILES} DESTINATION include/AprilTags COMPONENT applications)
+find_library(APRILTAGS_LIB
+  apriltags
+  PATHS ${CMAKE_BINARY_DIR}
+  NO_DEFAULT_PATH
+  ) 
+install(PROGRAMS ${APRILTAGS_LIB} DESTINATION lib COMPONENT applications)
