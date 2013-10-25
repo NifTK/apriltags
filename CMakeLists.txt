@@ -25,4 +25,9 @@ target_link_libraries(apriltags ${OpenCV_LIBS}) #-pg) #-fopenmp)
 # Add stuff for an install target.
 file(GLOB HEADER_FILES ${CMAKE_SOURCE_DIR}/AprilTags/*)
 install(PROGRAMS ${HEADER_FILES} DESTINATION include/AprilTags COMPONENT applications)
-install(TARGETS apriltags ARCHIVE DESTINATION lib)
+install(TARGETS apriltags
+  RUNTIME DESTINATION bin
+  LIBRARY DESTINATION lib 
+  ARCHIVE DESTINATION lib
+  
+  )
