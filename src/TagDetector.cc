@@ -12,15 +12,12 @@
 #include "AprilTags/Gaussian.h"
 #include "AprilTags/GrayModel.h"
 #include "AprilTags/GLine2D.h"
-#include "AprilTags/GLineSegment2D.h"
 #include "AprilTags/Gridder.h"
 #include "AprilTags/Homography33.h"
 #include "AprilTags/MathUtil.h"
 #include "AprilTags/Quad.h"
-#include "AprilTags/Segment.h"
 #include "AprilTags/TagFamily.h"
 #include "AprilTags/UnionFindSimple.h"
-#include "AprilTags/XYWeight.h"
 
 #include "AprilTags/TagDetector.h"
 
@@ -35,6 +32,102 @@ using namespace std;
 
 namespace AprilTags {
 
+  //-----------------------------------------------------------------------------
+  void TagDetector::SetUseHybridMethod(const bool& useHybrid)
+  {
+    m_UseHybrid = useHybrid;  
+  }
+
+  
+  //-----------------------------------------------------------------------------
+  void TagDetector::SetMinSize(const float& minSize)
+  {
+    m_MinSize = minSize;
+  }
+  
+  
+  //-----------------------------------------------------------------------------
+  void TagDetector::SetMaxSize(const float& maxSize)
+  {
+    m_MaxSize = maxSize;
+  }
+  
+  
+  //-----------------------------------------------------------------------------
+  void TagDetector::SetBlockSize(const int& blockSize)
+  {
+    m_BlockSize = blockSize;
+  }
+  
+  
+  //-----------------------------------------------------------------------------
+  void TagDetector::SetOffset(const int& offset)
+  {
+    m_Offset = offset;
+  }
+
+  
+  //-----------------------------------------------------------------------------
+  void TagDetector::ExtractSegment(
+    const GLineSegment2D& gseg,
+    const float& length,
+    const std::vector<XYWeight>& points,
+    const FloatImage& fimTheta,
+    const FloatImage& fimMag,
+    Segment& seg
+  )
+  {
+    float dy = gseg.getP1().second - gseg.getP0().second;
+    float dx = gseg.getP1().first - gseg.getP0().first;
+
+    float tmpTheta = std::atan2(dy,dx);
+
+    seg.setTheta(tmpTheta);
+    seg.setLength(length);
+
+    // We add an extra semantic to segments: the vector
+    // p1->p2 will have dark on the left, white on the right.
+    // To do this, we'll look at every gradient and each one
+    // will vote for which way they think the gradient should
+    // go. This is way more retentive than necessary: we
+    // could probably sample just one point!
+
+    float flip = 0, noflip = 0;
+    for (unsigned int i = 0; i < points.size(); i++) 
+    {
+      XYWeight xyw = points[i];
+      
+      float theta = fimTheta.get((int) xyw.x, (int) xyw.y);
+      float mag = fimMag.get((int) xyw.x, (int) xyw.y);
+
+      // err *should* be +M_PI/2 for the correct winding, but if we
+      // got the wrong winding, it'll be around -M_PI/2.
+      float err = MathUtil::mod2pi(theta - seg.getTheta());
+
+      if (err < 0)
+	      noflip += mag;
+      else
+	      flip += mag;
+    }
+
+    if (flip > noflip) {
+      float temp = seg.getTheta() + (float)M_PI;
+      seg.setTheta(temp);
+    }
+
+    float dot = dx*std::cos(seg.getTheta()) + dy*std::sin(seg.getTheta());
+    if (dot > 0) {
+      seg.setX0(gseg.getP1().first); seg.setY0(gseg.getP1().second);
+      seg.setX1(gseg.getP0().first); seg.setY1(gseg.getP0().second);
+    }
+    else {
+      seg.setX0(gseg.getP0().first); seg.setY0(gseg.getP0().second);
+      seg.setX1(gseg.getP1().first); seg.setY1(gseg.getP1().second);
+    }    
+  }
+  
+  
+  //-----------------------------------------------------------------------------
   std::vector<TagDetection> TagDetector::extractTags(const cv::Mat& image) {
 
     // convert to internal AprilTags image (todo: slow, change internally to OpenCV)
@@ -272,53 +365,7 @@ namespace AprilTags {
       continue;
 
     Segment seg;
-    float dy = gseg.getP1().second - gseg.getP0().second;
-    float dx = gseg.getP1().first - gseg.getP0().first;
-
-    float tmpTheta = std::atan2(dy,dx);
-
-    seg.setTheta(tmpTheta);
-    seg.setLength(length);
-
-    // We add an extra semantic to segments: the vector
-    // p1->p2 will have dark on the left, white on the right.
-    // To do this, we'll look at every gradient and each one
-    // will vote for which way they think the gradient should
-    // go. This is way more retentive than necessary: we
-    // could probably sample just one point!
-
-    float flip = 0, noflip = 0;
-    for (unsigned int i = 0; i < points.size(); i++) {
-      XYWeight xyw = points[i];
-      
-      float theta = fimTheta.get((int) xyw.x, (int) xyw.y);
-      float mag = fimMag.get((int) xyw.x, (int) xyw.y);
-
-      // err *should* be +M_PI/2 for the correct winding, but if we
-      // got the wrong winding, it'll be around -M_PI/2.
-      float err = MathUtil::mod2pi(theta - seg.getTheta());
-
-      if (err < 0)
-	noflip += mag;
-      else
-	flip += mag;
-    }
-
-    if (flip > noflip) {
-      float temp = seg.getTheta() + (float)M_PI;
-      seg.setTheta(temp);
-    }
-
-    float dot = dx*std::cos(seg.getTheta()) + dy*std::sin(seg.getTheta());
-    if (dot > 0) {
-      seg.setX0(gseg.getP1().first); seg.setY0(gseg.getP1().second);
-      seg.setX1(gseg.getP0().first); seg.setY1(gseg.getP0().second);
-    }
-    else {
-      seg.setX0(gseg.getP0().first); seg.setY0(gseg.getP0().second);
-      seg.setX1(gseg.getP1().first); seg.setY1(gseg.getP1().second);
-    }
-
+    this->ExtractSegment(gseg, length, points, fimTheta, fimMag, seg);
     segments.push_back(seg);
   }
 
@@ -396,29 +443,96 @@ namespace AprilTags {
     Quad::search(fimOrig, tmp, segments[i], 0, quads, opticalCenter);
   }
 
+  //================================================================
+  // Step 7b. Inspired by ARUCO, OpenCV.
+  // We perform thresholding followed by OpenCV routines to extract
+  // tags, and add to the list of Quads.
+  if (m_UseHybrid && image.type() ==CV_8UC1)
+  {
+    int height_ = fimOrig.getHeight();
+    int width_  = fimOrig.getWidth();
+    cv::Mat thresholded(height_, width_, CV_8UC1);
+    cv::adaptiveThreshold ( image, thresholded, 255, cv::ADAPTIVE_THRESH_MEAN_C, cv::THRESH_BINARY_INV, m_BlockSize, m_Offset);  
+    
+    int minSize = m_MinSize*std::max(thresholded.cols,thresholded.rows)*4;
+    int maxSize = m_MaxSize*std::max(thresholded.cols,thresholded.rows)*4;
+    std::vector<std::vector<cv::Point> > contours;
+    std::vector<cv::Vec4i> hierarchy;
+
+    cv::findContours ( thresholded , contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE );
+
+    std::vector<cv::Point>  approxCurve;
+    for ( unsigned int i = 0; i < contours.size(); i++ )
+    {
+      if ( minSize < contours[i].size() && contours[i].size() < maxSize )
+      {
+        cv::approxPolyDP(contours[i], approxCurve , double (contours[i].size()) * 0.05, true);
+        if ( approxCurve.size() == 4 )
+        {
+          if ( cv::isContourConvex (cv::Mat ( approxCurve ) ) )
+          {
+            float minDist = 1e10;
+            for ( unsigned int j = 0; j < 4; j++ )
+            {
+              float d = std::sqrt ( ( float ) ( approxCurve[j].x-approxCurve[ ( j+1 ) %4].x ) * ( approxCurve[j].x-approxCurve[ ( j+1 ) %4].x ) +
+                                              ( approxCurve[j].y-approxCurve[ ( j+1 ) %4].y ) * ( approxCurve[j].y-approxCurve[ ( j+1 ) %4].y ) );
+              if ( d < minDist ) 
+              {
+                minDist=d;
+              }
+            }
+            if ( minDist>10 )
+            {
+              std::vector<std::pair<float,float> > corners;              
+              for (unsigned int j = 0; j < 4; j++)
+              {
+                corners.push_back(std::pair<float, float>(approxCurve[j].x, approxCurve[j].y));
+              }
+              Quad newQuad(corners, opticalCenter);
+              quads.push_back(newQuad);
+            } // if larger than 10 pixels
+          } // if curve is convex
+        } // if curve has 4 sides
+      } // if outline within minSize, maxSize
+    } // for each contour
+  } // if grey, 1 channel image
+  
 #ifdef DEBUG_APRIL
   {
+    int height_ = fimOrig.getHeight();
+    int width_  = fimOrig.getWidth();
+    cv::Mat image2(height_, width_, CV_8UC3);
+    for (int y=0; y<height_; y++) {
+      for (int x=0; x<width_; x++) {
+        cv::Vec3b v;
+        for (int k=0; k<3; k++) {
+          v(k) = 0;
+        }
+        image2.at<cv::Vec3b>(y, x) = v;
+      }
+    }
+    
     for (unsigned int qi = 0; qi < quads.size(); qi++ ) {
       Quad &quad = quads[qi];
       std::pair<float, float> p1 = quad.quadPoints[0];
       std::pair<float, float> p2 = quad.quadPoints[1];
       std::pair<float, float> p3 = quad.quadPoints[2];
       std::pair<float, float> p4 = quad.quadPoints[3];
-      cv::line(image, cv::Point2f(p1.first, p1.second), cv::Point2f(p2.first, p2.second), cv::Scalar(0,0,255,0) );
-      cv::line(image, cv::Point2f(p2.first, p2.second), cv::Point2f(p3.first, p3.second), cv::Scalar(0,0,255,0) );
-      cv::line(image, cv::Point2f(p3.first, p3.second), cv::Point2f(p4.first, p4.second), cv::Scalar(0,0,255,0) );
-      cv::line(image, cv::Point2f(p4.first, p4.second), cv::Point2f(p1.first, p1.second), cv::Scalar(0,0,255,0) );
+      cv::line(image2, cv::Point2f(p1.first, p1.second), cv::Point2f(p2.first, p2.second), cv::Scalar(0,0,255,0) );
+      cv::line(image2, cv::Point2f(p2.first, p2.second), cv::Point2f(p3.first, p3.second), cv::Scalar(0,0,255,0) );
+      cv::line(image2, cv::Point2f(p3.first, p3.second), cv::Point2f(p4.first, p4.second), cv::Scalar(0,0,255,0) );
+      cv::line(image2, cv::Point2f(p4.first, p4.second), cv::Point2f(p1.first, p1.second), cv::Scalar(0,0,255,0) );
 
       p1 = quad.interpolate(-1,-1);
       p2 = quad.interpolate(-1,1);
       p3 = quad.interpolate(1,1);
       p4 = quad.interpolate(1,-1);
-      cv::circle(image, cv::Point2f(p1.first, p1.second), 3, cv::Scalar(0,255,0,0), 1);
-      cv::circle(image, cv::Point2f(p2.first, p2.second), 3, cv::Scalar(0,255,0,0), 1);
-      cv::circle(image, cv::Point2f(p3.first, p3.second), 3, cv::Scalar(0,255,0,0), 1);
-      cv::circle(image, cv::Point2f(p4.first, p4.second), 3, cv::Scalar(0,255,0,0), 1);
+      cv::circle(image2, cv::Point2f(p1.first, p1.second), 3, cv::Scalar(0,255,0,0), 1);
+      cv::circle(image2, cv::Point2f(p2.first, p2.second), 3, cv::Scalar(0,255,0,0), 1);
+      cv::circle(image2, cv::Point2f(p3.first, p3.second), 3, cv::Scalar(0,255,0,0), 1);
+      cv::circle(image2, cv::Point2f(p4.first, p4.second), 3, cv::Scalar(0,255,0,0), 1);
     }
-    cv::imshow("debug_april", image);
+    cv::imwrite("test.2.png", image2);
   }
 #endif
 
