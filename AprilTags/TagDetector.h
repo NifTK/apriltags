@@ -21,7 +21,7 @@ public:
 
 	//! Constructor
   // note: TagFamily is instantiated here from TagCodes
-	TagDetector(const TagCodes& tagCodes) : thisTagFamily(tagCodes) {}
+  TagDetector(const TagCodes& tagCodes) : thisTagFamily(tagCodes),  m_Sigma(0), m_SegmentationSigma(0.8) {}
 	
 	std::vector<TagDetection> extractTags(const cv::Mat& image);
 	
@@ -50,6 +50,16 @@ public:
    */
   void SetOffset(const int& offset);
 
+  /**
+   * \brief Sets the gaussian sigma to be applied to the image in general, so will affect the ability to read off tag patterns.
+   */
+  void SetSigma(const float& sigma);
+
+  /**
+   * \brief Sets the gaussian sigma used when detecting the tag outline, so will affect the ability to find a tag.
+   */
+  void SetSegmentationSigma(const float& segmentationSigma);
+
 private:
   
   void ExtractSegment(
@@ -65,7 +75,10 @@ private:
   float m_MinSize;
   float m_MaxSize;
   int m_BlockSize;
-  int m_Offset;  
+  int m_Offset;
+  float m_Sigma;
+  float m_SegmentationSigma;
+
 };
 
 } // namespace
