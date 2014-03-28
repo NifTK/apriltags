@@ -66,7 +66,21 @@ namespace AprilTags {
     m_Offset = offset;
   }
 
-  
+
+  //-----------------------------------------------------------------------------
+  void TagDetector::SetSigma(const float& sigma)
+  {
+    m_Sigma = sigma;
+  }
+
+
+  //-----------------------------------------------------------------------------
+  void TagDetector::SetSegmentationSigma(const float& segmentationSigma)
+  {
+    m_SegmentationSigma = segmentationSigma;
+  }
+
+
   //-----------------------------------------------------------------------------
   void TagDetector::ExtractSegment(
     const GLineSegment2D& gseg,
@@ -200,7 +214,7 @@ namespace AprilTags {
    * harder to decode very small tags. Reasonable values are 0, or
    * [0.8, 1.5].
    */
-  float sigma = 0;
+  float sigma = m_Sigma;
 
   //! Gaussian smoothing kernel applied to image (0 == no filter).
   /*! Used when detecting the outline of the box. It is almost always
@@ -209,7 +223,7 @@ namespace AprilTags {
    * segsigma has been optimized to avoid a redundant filter
    * operation.
    */
-  float segSigma = 0.8f;
+  float segSigma = m_SegmentationSigma;
 
   if (sigma > 0) {
     int filtsz = ((int) max(3.0f, 3*sigma)) | 1;
